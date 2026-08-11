@@ -6,7 +6,6 @@
 package app.morphe.manager.ui.screen.home
 
 import android.os.Build
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -19,9 +18,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,18 +42,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.morphe.manager.R
-import app.morphe.manager.domain.bundles.BundleSourceType
 import app.morphe.manager.domain.apk.InstalledApkInfo
 import app.morphe.manager.domain.apk.SavedApkInfo
-import app.morphe.manager.domain.bundles.BundleRecommendation
-import app.morphe.manager.domain.bundles.BundledAppTarget
-import app.morphe.manager.domain.bundles.experimentalVersions
+import app.morphe.manager.domain.bundles.*
 import app.morphe.manager.domain.bundles.PatchBundleSource.Extensions.sourceType
-import app.morphe.manager.domain.bundles.RemotePatchBundle
 import app.morphe.manager.domain.repository.PatchBundleRepository
 import app.morphe.manager.ui.model.HomeAppItem
 import app.morphe.manager.ui.screen.shared.*
-import app.morphe.manager.ui.viewmodel.*
+import app.morphe.manager.ui.viewmodel.HomeViewModel
+import app.morphe.manager.ui.viewmodel.InstalledAppInfoViewModel
+import app.morphe.manager.ui.viewmodel.InstalledAppPickerItem
 import app.morphe.manager.util.*
 import app.morphe.patcher.patch.AppTarget
 import kotlinx.coroutines.delay
@@ -160,6 +155,10 @@ fun HomeDialogs(
         val usingMountInstall = homeViewModel.usingMountInstall
         // Remember packageName to prevent color flickering during exit animation
         val packageName = remember { homeViewModel.pendingPackageName }
+        // Settled in dialog 1 and remembered for the same reason, so the steps stay put on the way out
+        val requestedVersion = remember {
+            (homeViewModel.pendingSelectedDownloadVersion ?: homeViewModel.pendingRecommendedVersion)?.version
+        }
 
         // Resolve download button color: bundle declared → default
         val bundleMetadata by homeViewModel.bundleAppMetadataFlow.collectAsStateWithLifecycle()
@@ -174,6 +173,8 @@ fun HomeDialogs(
         }
 
         DownloadInstructionsDialog(
+            downloadUrl = homeViewModel.resolvedDownloadUrl,
+            requestedVersion = requestedVersion,
             usingMountInstall = usingMountInstall,
             targetAppInstalled = homeViewModel.pendingTargetAppInstalled == true,
             downloadColor = downloadColor,
@@ -437,6 +438,7 @@ fun HomeDialogs(
             lockStateOf = { patch ->
                 patch.lockState(homeViewModel.currentInstallerType, homeViewModel.currentApkArchitecture)
             },
+            holdsUniversalPatches = homeViewModel::expertModeSelectAllHoldsUniversal,
             onDismiss = {
                 homeViewModel.cleanupExpertModeData()
             },
@@ -828,195 +830,6 @@ internal fun ApkAvailabilityDialog(
 }
 
 /**
- * Dialog 2: Download instructions dialog.
- */
-@Composable
-internal fun DownloadInstructionsDialog(
-    usingMountInstall: Boolean,
-    targetAppInstalled: Boolean,
-    downloadColor: Color,
-    isApkBundle: Boolean,
-    onDismiss: () -> Unit,
-    onOpenApkDownloadHelper: (() -> Unit)? = null,
-    onContinue: () -> Unit
-) {
-    val context = LocalContext.current
-    val downloadButtonToasts = listOf(
-        stringResource(R.string.home_download_instructions_download_button_toast),
-        stringResource(R.string.home_download_instructions_download_button_toast_2),
-        stringResource(R.string.home_download_instructions_download_button_toast_3),
-        stringResource(R.string.home_download_instructions_download_button_toast_4),
-        stringResource(R.string.home_download_instructions_download_button_toast_5),
-        stringResource(R.string.home_download_instructions_download_button_toast_6),
-    )
-    var downloadClickCount by remember { mutableIntStateOf(0) }
-
-    AppDialog(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.home_download_instructions_title),
-        footer = {
-            if (onOpenApkDownloadHelper != null) {
-                AppDialogButtonRow(
-                    primaryText = stringResource(R.string.home_download_instructions_continue),
-                    onPrimaryClick = onContinue,
-                    primaryIcon = Icons.AutoMirrored.Outlined.OpenInNew,
-                    secondaryText = stringResource(R.string.home_apk_helper_download),
-                    onSecondaryClick = onOpenApkDownloadHelper,
-                    secondaryIcon = Icons.Outlined.Download,
-                    layout = DialogButtonLayout.Vertical
-                )
-            } else {
-                AppDialogButton(
-                    text = stringResource(R.string.home_download_instructions_continue),
-                    onClick = onContinue,
-                    icon = Icons.AutoMirrored.Outlined.OpenInNew,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    ) {
-        val textColor = LocalDialogTextColor.current
-        val secondaryColor = LocalDialogSecondaryTextColor.current
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.home_download_instructions_steps_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = textColor
-            )
-
-            InstructionStep(
-                number = "1",
-                text = stringResource(
-                    R.string.home_download_instructions_step1,
-                    stringResource(R.string.home_download_instructions_continue)
-                ),
-                textColor = textColor,
-                secondaryColor = secondaryColor
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                InstructionStep(
-                    number = "2",
-                    text = stringResource(R.string.home_download_instructions_step2_part1),
-                    textColor = textColor,
-                    secondaryColor = secondaryColor
-                )
-
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val adjustedDownloadColor = downloadColor.ensureContrast(MaterialTheme.colorScheme.background)
-                    val downloadContentColor = if (adjustedDownloadColor.requiresLightContent()) Color.White else Color.Black
-                    Surface(
-                        onClick = {
-                            downloadClickCount++
-                            context.toast(
-                                string = downloadButtonToasts.getOrElse(downloadClickCount - 1) { downloadButtonToasts.last() },
-                                duration = Toast.LENGTH_LONG
-                            )
-                        },
-                        shape = RoundedCornerShape(1.dp),
-                        color = adjustedDownloadColor
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Download,
-                                contentDescription = null,
-                                tint = downloadContentColor,
-                                modifier = Modifier.size(Defaults.IconSizeSmall)
-                            )
-                            Text(
-                                text = if (isApkBundle) "DOWNLOAD APK BUNDLE" else "DOWNLOAD APK",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = downloadContentColor
-                            )
-                        }
-                    }
-                }
-            }
-
-            val mountInstallRequired = usingMountInstall && !targetAppInstalled
-
-            InstructionStep(
-                number = "3",
-                text = htmlAnnotatedString(
-                    stringResource(
-                        if (mountInstallRequired) {
-                            R.string.home_download_instructions_step3_mount
-                        } else {
-                            R.string.home_download_instructions_step3
-                        }
-                    )
-                ),
-                textColor = textColor,
-                secondaryColor = secondaryColor
-            )
-
-            InstructionStep(
-                number = "4",
-                text = stringResource(
-                    if (mountInstallRequired) R.string.home_download_instructions_step4_mount
-                    else R.string.home_download_instructions_step4
-                ),
-                textColor = textColor,
-                secondaryColor = secondaryColor
-            )
-        }
-    }
-}
-
-@Composable
-private fun InstructionStep(
-    number: String,
-    text: AnnotatedString,
-    textColor: Color,
-    secondaryColor: Color
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(
-            text = number,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = textColor.copy(alpha = 0.6f)
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = secondaryColor,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun InstructionStep(
-    number: String,
-    text: String,
-    textColor: Color,
-    secondaryColor: Color
-) {
-    InstructionStep(
-        number = number,
-        text = AnnotatedString(text),
-        textColor = textColor,
-        secondaryColor = secondaryColor
-    )
-}
-
-/**
  * Dialog 3: File picker prompt dialog.
  */
 @Composable
@@ -1133,7 +946,9 @@ private fun InstalledAppPickerDialog(
                 AppFilter.UserOnly -> Icons.Outlined.Person to labelUser
                 AppFilter.SystemOnly -> Icons.Outlined.Android to labelSystem
             }
-            FilledTonalIconButton(
+            TitleAction(
+                icon = icon,
+                contentDescription = description,
                 onClick = {
                     appFilter = when (appFilter) {
                         AppFilter.All -> AppFilter.UserOnly
@@ -1148,17 +963,9 @@ private fun InstalledAppPickerDialog(
                         }
                     )
                 },
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = description,
-                    modifier = Modifier.size(Defaults.IconSizeSmall)
-                )
-            }
+                style = TitleActionStyle.Toggle,
+                active = appFilter != AppFilter.All
+            )
         },
         footer = {
             AppDialogOutlinedButton(
@@ -1179,24 +986,12 @@ private fun InstalledAppPickerDialog(
                 userScrollEnabled = !isLoading
             ) {
                 stickyHeader {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
-                        AppDialogTextField(
-                            value = searchQuery.value,
-                            onValueChange = { searchQuery.value = it },
-                            placeholder = { Text(stringResource(R.string.search)) },
-                            leadingIcon = {
-                                Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
-                            },
-                            showClearButton = true,
-                            enabled = !isLoading,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 4.dp)
-                        )
-                    }
+                    AppDialogSearchTextField(
+                        value = searchQuery.value,
+                        onValueChange = { searchQuery.value = it },
+                        label = stringResource(R.string.search),
+                        enabled = !isLoading
+                    )
                 }
 
                 if (isLoading) {
