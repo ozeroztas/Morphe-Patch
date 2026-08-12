@@ -1,4 +1,5 @@
 name: Crowdin pull and merge
+
 on:
   schedule:
     - cron: "0 */12 * * *" # every 12 hours
@@ -12,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dev
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           ref: dev
           fetch-depth: 0
@@ -42,7 +43,7 @@ jobs:
     steps:
       # Step 1: Checkout crowdin branch to run checks on it
       - name: Checkout crowdin branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           ref: crowdin
           fetch-depth: 0
@@ -51,15 +52,18 @@ jobs:
       - name: Cache Gradle
         uses: burrunan/gradle-cache-action@v3
 
-      # Step 2: Run string checks on the crowdin branch
-      - name: Check strings on crowdin
+      # Step 2: Compile Android app to check string resources
+      - name: Compile Android app to check resources
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew checkStringResources -PnoProguard
+          _JAVA_OPTIONS: "-Djava.awt.headless=true"
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug -PnoProguard -PsignAsDebug
 
       # Step 3: Checkout dev branch to prepare for merging
       - name: Checkout dev branch for merge
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           ref: dev
           fetch-depth: 0
