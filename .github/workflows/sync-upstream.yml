@@ -28,6 +28,7 @@ jobs:
 
           mkdir -p /tmp/my-workflows
           cp -r .github/workflows/. /tmp/my-workflows/
+          cp .github/dependabot.yml /tmp/my-dependabot.yml
 
           git remote add upstream https://github.com/MorpheApp/morphe-patches.git
           git fetch upstream main --force
@@ -37,11 +38,12 @@ jobs:
           rm -rf .github/workflows
           mkdir -p .github/workflows
           cp -r /tmp/my-workflows/. .github/workflows/
+          cp /tmp/my-dependabot.yml .github/dependabot.yml
 
           git add -A
 
           if ! git diff --cached --quiet; then
-            git commit -m "Preserve local workflows"
+            git commit -m "Preserve local GitHub configuration"
           fi
 
           git push origin main --force
