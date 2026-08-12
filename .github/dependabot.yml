@@ -4,6 +4,7 @@ updates:
     labels: []
     directory: /
     target-branch: dev
+    open-pull-requests-limit: 10
     schedule:
       interval: weekly
 
