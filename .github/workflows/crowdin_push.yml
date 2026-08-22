@@ -6,7 +6,8 @@ on:
     branches:
       - dev
     paths:
-      - patches/src/main/resources/addresources/values/**/strings.xml
+      - app/src/main/res/values/plurals.xml
+      - app/src/main/res/values/strings.xml
 
 jobs:
   push:
@@ -14,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dev
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           ref: dev
           fetch-depth: 0
