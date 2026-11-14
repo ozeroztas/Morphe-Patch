@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Open pull request
         uses: repo-sync/pull-request@v2
@@ -26,6 +26,5 @@ jobs:
             This pull request will ${{ env.MESSAGE }}.
 
             ## Before merging this PR
-
             - [ ] Pull & merge translations from Crowdin
           pr_draft: true
