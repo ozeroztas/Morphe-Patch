@@ -37,10 +37,6 @@ jobs:
       - name: Cache Gradle
         uses: burrunan/gradle-cache-action@v3
 
-      - name: Setup keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > app/keystore.jks
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -63,16 +59,13 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEYSTORE_ENTRY_ALIAS: ${{ secrets.KEYSTORE_ENTRY_ALIAS }}
-          KEYSTORE_ENTRY_PASSWORD: ${{ secrets.KEYSTORE_ENTRY_PASSWORD }}
 
       - name: Attest
         if: steps.release.outputs.new_release_published == 'true'
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: 'Morphe Manager ${{ steps.release.outputs.new_release_git_tag }}'
-          subject-path: app/build/outputs/apk/release/morphe-manager*.apk
+          subject-name: 'Morphe Patches ${{ steps.release.outputs.new_release_git_tag }}'
+          subject-path: patches/build/libs/patches-*.mpp
 
       - name: Generate website deploy token
         if: steps.release.outputs.new_release_published == 'true'
