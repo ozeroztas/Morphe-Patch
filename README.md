@@ -35,7 +35,7 @@ All modifications made by Morphe, along with their dates, can be found in the Gi
 ## 🩹 Patches list
 
 <!-- PATCHES_START -->
-> **[v1.0.0](https://github.com/ozeroztas/Morphe-Patch/releases/tag/v1.0.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;212 patches total
+> **[v1.0.1](https://github.com/ozeroztas/Morphe-Patch/releases/tag/v1.0.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;212 patches total
 <details>
 <summary>📦 YouTube Music&nbsp;&nbsp;•&nbsp;&nbsp;57 patches</summary>
 <br>
