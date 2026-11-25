@@ -28,6 +28,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The repository history was rewritten, leaving an orphaned v1.0.0 tag.
+      # Remove it only when it is not part of the current main history.
+      - name: Remove stale initial release tag
+        run: |
+          if git show-ref --verify --quiet refs/tags/v1.0.0 && ! git merge-base --is-ancestor refs/tags/v1.0.0 HEAD; then
+            git push origin :refs/tags/v1.0.0
+            git tag -d v1.0.0
+          fi
+
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
