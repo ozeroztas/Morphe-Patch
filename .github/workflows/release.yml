@@ -33,14 +33,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      # The repository history was rewritten, leaving an orphaned v1.0.0 tag.
-      # Remove it only when it is not part of the current main history.
-      - name: Remove stale initial release tag
+      # Remove stable release tags left behind by the previous rewritten history.
+      # Keep every tag that is reachable from the current main branch.
+      - name: Remove stale release tags
+        shell: bash
         run: |
-          if git show-ref --verify --quiet refs/tags/v1.0.0 && ! git merge-base --is-ancestor refs/tags/v1.0.0 HEAD; then
-            git push origin :refs/tags/v1.0.0
-            git tag -d v1.0.0
-          fi
+          while IFS= read -r tag; do
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+            if ! git merge-base --is-ancestor "refs/tags/$tag" HEAD; then
+              echo "Removing stale tag $tag (not reachable from current main)"
+              git push origin ":refs/tags/$tag"
+              git tag -d "$tag"
+            fi
+          done < <(git tag --list 'v[0-9]*' | sort -V)
 
       - name: Setup Java
         uses: actions/setup-java@v5
