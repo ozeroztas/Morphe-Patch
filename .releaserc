@@ -30,6 +30,9 @@
                 { "type": "bump", "section": "🚀 Updated App Support", "hidden": false },
                 { "type": "build", "hidden": true }
             ]
+        },
+        "writerOpts": {
+            "mainTemplate": "{{#if version}}Morphe Patches {{version}}{{/if}}\n\nSee CHANGELOG.md for the complete list of changes."
         }
         }
     ],
