@@ -11,6 +11,11 @@ on:
     branches:
       - main
 
+# Release and upstream sync both write to main. Never let them race.
+concurrency:
+  group: morphe-main-branch-write
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Release
