@@ -92,18 +92,32 @@ jobs:
         if: steps.release.outputs.new_release_published == 'true' && vars.MORPHE_AAMATT_APP_ID == ''
         run: echo "::warning::Website deployment skipped because repository variable MORPHE_AAMATT_APP_ID is not configured."
 
-      - name: Wait before sending FCM
+      - name: Check FCM configuration
         if: steps.release.outputs.new_release_published == 'true' && (github.event_name == 'push' || inputs.send_fcm == true)
+        id: fcm-config
+        env:
+          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [[ -z "$FCM_PROJECT_ID" || -z "$FCM_SERVICE_ACCOUNT_JSON" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FCM notification skipped: configure FCM_PROJECT_ID and FCM_SERVICE_ACCOUNT_JSON repository secrets."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait before sending FCM
+        if: steps.fcm-config.outputs.enabled == 'true'
         run: sleep 300
 
       - name: Setup Python for FCM
-        if: steps.release.outputs.new_release_published == 'true' && (github.event_name == 'push' || inputs.send_fcm == true)
+        if: steps.fcm-config.outputs.enabled == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Send FCM push notification
-        if: steps.release.outputs.new_release_published == 'true' && (github.event_name == 'push' || inputs.send_fcm == true)
+        if: steps.fcm-config.outputs.enabled == 'true'
         env:
           FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
           FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
