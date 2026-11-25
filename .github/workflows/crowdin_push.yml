@@ -6,7 +6,8 @@ on:
     branches:
       - dev
     paths:
-      - patches/src/main/resources/addresources/values/**/strings.xml
+      - app/src/main/res/values/plurals.xml
+      - app/src/main/res/values/strings.xml
 
 jobs:
   push:
@@ -14,14 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dev
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           ref: dev
           fetch-depth: 0
           clean: true
 
       - name: Push strings
-        uses: crowdin/github-action@v3
+        uses: crowdin/github-action@v2
         with:
           config: crowdin.yml
           upload_sources: true
