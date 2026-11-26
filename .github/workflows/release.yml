@@ -11,6 +11,11 @@ on:
     branches:
       - main
 
+# Release and upstream sync both write to main. Never let them race.
+concurrency:
+  group: morphe-main-branch-write
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Release
@@ -21,14 +26,15 @@ jobs:
       attestations: write
       actions: write
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Java
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -37,30 +43,32 @@ jobs:
         uses: burrunan/gradle-cache-action@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v6
         with:
-          node-version: 'lts/*'
-          cache: 'npm'
+          node-version: "lts/*"
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Release
-        uses: cycjimmy/semantic-release-action@v8
+        uses: cycjimmy/semantic-release-action@v6
         id: release
         env:
+          GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MORPHE_SIGNING_KEY: ${{ secrets.MORPHE_SIGNING_KEY }}
 
       - name: Attest
         if: steps.release.outputs.new_release_published == 'true'
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: 'Morphe Patches ${{ steps.release.outputs.new_release_git_tag }}'
           subject-path: patches/build/libs/patches-*.mpp
 
+      # Website deployment is optional; a missing App Client ID must not fail
+      # an otherwise successful release.
       - name: Generate website deploy token
-        if: steps.release.outputs.new_release_published == 'true'
+        if: steps.release.outputs.new_release_published == 'true' && vars.MORPHE_AAMATT_APP_ID != ''
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
@@ -69,7 +77,7 @@ jobs:
           owner: MorpheApp
 
       - name: Trigger website deploy
-        if: steps.release.outputs.new_release_published == 'true'
+        if: steps.release.outputs.new_release_published == 'true' && vars.MORPHE_AAMATT_APP_ID != ''
         uses: actions/github-script@v9
         with:
           github-token: ${{ steps.app-token.outputs.token }}
@@ -80,23 +88,40 @@ jobs:
               event_type: 'trigger-deploy'
             })
 
-      - name: Wait before sending FCM
+      - name: Explain skipped website deployment
+        if: steps.release.outputs.new_release_published == 'true' && vars.MORPHE_AAMATT_APP_ID == ''
+        run: echo "::warning::Website deployment skipped because repository variable MORPHE_AAMATT_APP_ID is not configured."
+
+      - name: Check FCM configuration
         if: steps.release.outputs.new_release_published == 'true' && (github.event_name == 'push' || inputs.send_fcm == true)
+        id: fcm-config
+        env:
+          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [[ -z "$FCM_PROJECT_ID" || -z "$FCM_SERVICE_ACCOUNT_JSON" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FCM notification skipped: configure FCM_PROJECT_ID and FCM_SERVICE_ACCOUNT_JSON repository secrets."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait before sending FCM
+        if: steps.fcm-config.outputs.enabled == 'true'
         run: sleep 300
 
       - name: Setup Python for FCM
-        if: steps.release.outputs.new_release_published == 'true' && (github.event_name == 'push' || inputs.send_fcm == true)
-        uses: actions/setup-python@v7
+        if: steps.fcm-config.outputs.enabled == 'true'
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Send FCM push notification
-        if: steps.release.outputs.new_release_published == 'true' && (github.event_name == 'push' || inputs.send_fcm == true)
+        if: steps.fcm-config.outputs.enabled == 'true'
         env:
           FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
           FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
-          FCM_TYPE: bundle_update
-          FCM_VERSION: ${{ steps.release.outputs.new_release_version }}
+          NEW_TAG: ${{ steps.release.outputs.new_release_git_tag }}
           BRANCH: ${{ github.ref_name }}
         run: |
           pip install cryptography
