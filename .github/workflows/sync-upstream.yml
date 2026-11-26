@@ -43,7 +43,8 @@ jobs:
 
           git remote add upstream https://github.com/MorpheApp/morphe-patches.git
           git fetch upstream main --force
-          git reset --hard upstream/main
+          # Merge instead of resetting: keep published release tags in main history.
+          git merge --no-edit -X theirs upstream/main
 
           rm -rf .github/workflows
           mkdir -p .github
@@ -61,4 +62,4 @@ jobs:
             git commit -m "Sync upstream while preserving local release files"
           fi
 
-          git push origin main --force
+          git push origin main
